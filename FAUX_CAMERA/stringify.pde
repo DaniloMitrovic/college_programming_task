@@ -1,5 +1,16 @@
+/*
+  Printing functions ... overloading string function so the object can be reviewed and debugged quickly.
+  STR :> construct and return a string representation of an object
+  PRINT :> print line, often than not it is a version of void print( str ) function
+  PRINTLN:> print in a new line, often than not it is a void print( str ) +'\n'
+  and PRINT PRINTLN for lists
+*/
+
 // setting string methods
 String str( pnt p ){
+  /*
+    String point :> name | i , j , k
+  */
   String s = "";
   s += p.name + " |  ";
   s += p.i;
@@ -7,7 +18,12 @@ String str( pnt p ){
   s += " , " + p.k;
   return s;
 }
+
 String str( frame f){
+  /*
+  string wrapper for frame object
+  [ DIMENSIONS MARGIN PADDING ]
+  */
   String ret = " [ ";
   ret += " D {" + f.dims[0] + " , " + f.dims[1]+ "} " ;
   ret += " M {" + f.marg[0] + " , " + f.marg[1]+ "} " ;
@@ -15,7 +31,12 @@ String str( frame f){
   ret += "]";
   return ret;
 }
+
 String str( ellipsoid e ){
+  /*
+    ellipsoid foruma stringifation ... hehe .. stringifation
+    (x/Rx)^2 + (y/Ry)^2 + (z/Rz)^2 = 1
+  */
   String ret = "";
   ret += "(X/"+e.radius.i+")^2";
   ret += " + ";
@@ -25,7 +46,17 @@ String str( ellipsoid e ){
   ret += " = 1";
   return ret;
 }
+
 String str( plane p){
+  
+  /*
+    Plane is a wrapper/ container of sorts for many points. 
+    So i need a plane name [ derived from points names ]
+       i need a point value
+    | PLANENAME |
+    \t point
+  */
+  
   String p_name = "";
   String p_pnts = "";
   
@@ -35,7 +66,16 @@ String str( plane p){
   }
   return "| " + p_name + " | " + p_pnts;
 }
+
 String str(b_box b){
+  
+  /*
+    b_box is a boxy box [ kockasta kutija ] and it is wrapper for planes and points of the box
+    same as plane
+    b: { BOXNAME }
+    \t box_point
+  */
+  
   String b_name = "";
   String b_pnts = "";
   for( int i = 0; i < 8 ; i ++ ){
@@ -48,6 +88,14 @@ String str(b_box b){
   return "b: { "+b_name + " }\n" + b_pnts;
 }
 String str( camera c ){
+  
+  /*
+    camera object, it has ellipsoid for an projector shape, 
+    AND 2 frames, one of bounds of window screen, and another of display screen
+    OUTER :> screen bounds
+    INNER :> display screen
+  */
+  
   String s = "";
   s += " CAM : { ";
   s += str(c.project.radius) + " }";
