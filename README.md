@@ -3,7 +3,7 @@ In architectural college we learn basics of programming so this is a quick way f
 
 
 Summary:>
-  -> Build a simple camera that will show an object passed trough it ( in this case a box shape )
+  -> Build a simple camera that will show an object passed trough it ( in this case a box shape ) with no lighting information. wireframe model
   -> Build it with the least amount of objects necesery ( for cube/boxy box )|
   -> asign moveability with camera via standard 3ds max mouse navigation
 
@@ -12,7 +12,7 @@ Summary:>
   -> camera , object:
     basic frame dimensions 
     basic focal length
-    basic pixel to unit convertions
+    basic pixel to unit convertions /[ scaling and rescaling ]
     background and stuff
    
   -> point [ pnt_]
@@ -24,5 +24,6 @@ Summary:>
   -> box [ b_box ]
     i,j,k dimensioning ( origin is center ) to help with rotation and projection stuff
     
-  -> plane work in progress
-  -> vector work in progress
+  -> plane[ plane ]
+  
+  
