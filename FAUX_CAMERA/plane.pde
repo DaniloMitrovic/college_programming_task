@@ -1,4 +1,12 @@
 class plane{
+  
+  /*
+  Since face is an collection of lines and points. Now i could theoretically make a new object called line ( which i may have to )
+  but face is defined by bounded surface, where bounds are lines drawn between points.
+  You can define a plane by 2 lines, a line and a point outside the line, 3 points etc
+  but ... this is face. Plane was taken ... i hope so ... else it is a poor word chooice on my part. 
+  */
+  
   pnt[] constraint = {};
   
   plane(){}  // defaults to not asigned plane
