@@ -1,4 +1,11 @@
 class pnt{
+  
+  /*
+    point class, a float wrapper
+    float i,j,k are unit vectors or 3d coordinate systems
+    NAME is an plane identifier... in python you can ID an object but its memory location, in c++ also... here i haven't found anything similar.
+  */
+  
   float i,j,k; // unit vectors
   String name = ""; // point name ... since processing doesn't have object.id value ... -.-
   
@@ -39,11 +46,11 @@ class pnt{
     this.name = s_name;
   }
   
-  boolean p_equal( pnt o ){    // equality comparison... the rest of comparisons are too time consuming -> rely on euclidian norm
+  boolean p_equal( pnt o ){    // equality comparison... the rest of comparisons are too time consuming -> relly on euclidian norm
     return ((this.i == o.i) && (this.j == o.j) && (this.k == o.k ));
   }
   
-  boolean p_not_equal( pnt o ){      // not equality comparison... the rest of comparisons are too time consuming -> rely on euclidian norm
+  boolean p_not_equal( pnt o ){      // not equality comparison... the rest of comparisons are too time consuming -> relly on euclidian norm
     return ((this.i != o.i) && (this.j != o.j) && (this.k != o.k ));
   }
   pnt p_add( pnt o ){  // adds two points
