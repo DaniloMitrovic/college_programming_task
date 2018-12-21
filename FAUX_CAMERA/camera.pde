@@ -1,90 +1,235 @@
-class camera{
+class camera {
+
+  frame outer;  // framing plane
+  frame inner;  // projection plane
+  ellipsoid project; // projection object
+
+
+  camera() {
+    this.outer = new frame(width, height);  // whole screen
+    this.outer.asign_padding( 10.0, 10.0 );  // padding fro this.inner
+    this.inner = new frame(this.outer);
+    this.project = new ellipsoid( new pnt( 24, 27, 27 ) ); // a bit fatty but what the hell [mm]
+  }
+
+  void set_focal_length( float fl) {
+    this.project.radius.i = fl;
+  }
   
-  int bg = 0xEF;
-  float[] projection = new float[2];
-  float[] px_mm     = new float[2];
-  float ratio = 0; 
-  float focal_length = 0;
+  void set_film_dimension( float w, float h ) {
+    float diagonal = sqrt( pow(w, 2) + pow(h, 2) );
+    diagonal /= 2;
+
+    this.project.radius.j = diagonal;
+    this.project.radius.k = diagonal;
+  }
   
-  camera( float fl ){
-    this.projection[0] = width;
-    this.projection[1] = height;
-    this.ratio = width/height;
-    
-    this.px_mm[0] = ( this.is_landscape() ? width/32 : height/32 );
-    this.px_mm[1] = this.px_mm[0]*this.ratio;
-    this.focal_length = fl;
+  float get_frame_step(){
+    float w,h;
+    w = this.inner.dims[0];
+    h = this.inner.dims[1];
+
+    float frame_sqr = 2*this.project.radius.j*this.project.radius.k;
+    float root_frame= sqrt( pow( w*this.project.radius.k ,2) + pow( h*this.project.radius.j ,2) );
+    return frame_sqr/root_frame;
+  }
+  
+  pnt get_screen(){
+    float w,h;
+    w = this.inner.dims[0];
+    h = this.inner.dims[1];
+    pnt ret = new pnt();    
+    ret.add_name("frame_projected");
+    ret.j = (w/2)*this.get_frame_step();
+    ret.k = (h/2)*this.get_frame_step();
+    return ret;
     
   }
   
-  boolean is_landscape(){ return this.projection[0]>this.projection[1]; }
-  
-  float manipulate( float p_dim, float distance ){
-    return ( p_dim/(2*distance) )*this.focal_length;
-  }
-  
-  void show( b_box b, pnt at ){
-    //frame maintainance
-    translate( width/2, height/2);
-    background(this.bg);
-    rect( -(width/2)+15, -(height/2)+15, width-30, height-30);
-    
-    //fill( 0x1f*sun_coeficient) sun is allays from left side;
-    // rect( xorigin, yorigin, width, height )
-    
-    pnt[] box_points = b.gen_pnts();
+}
+
+void show_on_camera( camera cam_o, plane o, float fl, float scale){
+  /*
+  STAGES:
+  enviorment preparation
+    -> asigning new focal point
+    -> scaling down the ellipsoid
+      IF ELLIPSOID IS TOO BIG THE OBJECT WILL HAVE AN ORTHOGONAL LIKE PROJECTION
+      IF ELLISPOID IS TOO SMALL THE OBJECT WILL BE OUTSIDE THE FRAME SINCE ANY PROJECTION TO 0,0,0 WILL BE AT LARGE ANGLE OF LIMITS TO p/2
+    -> scaling down the frame of projection onto YZ ellipse 
+      This can be done only when ellipsoid is scaled, since:
         
-    for( int i = 0 ; i < box_points.length ;i++){
-      box_points[i] = box_points[i].p_add(at);
+        frame F[ w/2, h/2 ] :> centered aroudn 0,0,0
+        t = 2*Ry*Rz/ sqrt( pow(w*Rz,2) + pow(h*Ry,2) );
+        frame newF[ w*t*.5, h*t*.5 ]
+        
+        so if Ry,Rz,Rx isn't scaled down... wrong results will happen
+   
+   plane preparation:
+     -> getting the projection of each point on the plane
+     -> removing the x axis :> since we dont actually need it anymore :: AKA projection of that point on YZ plane
+   
+   BOUNDS:
+     -> check if the point is inside the plane of framing
+     -> if point is outside of frame bounds
+     -> grab i=0, i-1,i+1
+       :> function from i-1 -> i=0 find intertion that fits on the plane
+       :> function from i=0 -> i+1 find insertion that fits on the plane
+         -> populate plane with new found points in right indicies
+     
+   Rescaling
+     -> rescale to the frame size :> [metric]->[pixel]
+   
+   Represent:
+     -> draw a shape
+  */
+  
+  //ENV setup
+  cam_o.set_focal_length(fl);                                // devising the Rx coordinate of the ellipsoid
+  cam_o.project.radius = cam_o.project.radius.p_div(scale);  // scaling down ellispoid
+  pnt new_frame = cam_o.get_screen();                        // scaling down the frame
+  
+  //plane prepraration
+  plane projected_p = new plane();  
+  for( int i =0; i < o.constraint.length ; i ++ ){
+    pnt temp = new pnt();  // generating placeholder point
+    String name = o.constraint[i].name;  // grabbing name from point
+    
+    temp = o.constraint[i]; // swaping temp values
+    temp = cam_o.project.get_projection( temp );  // getting projection
+    temp.name = name;  // asigning the name
+    temp.i = 0;        // removing the x axis
+    projected_p.add_point(temp);  // adds point to the placeholder plane
+  }
+  
+  //bounds
+  plane bounds = new plane();  // new plane containing all points inside bounds
+  
+  // for each point in plane constraint
+  for( int i = 0; i < projected_p.constraint.length  ;i ++ ){
+    
+    if( check_p_against_frame(projected_p.constraint[i], new_frame ) ){ bounds.add_point( projected_p.constraint[i] ); }
+    else{  // current point is out of bounds
+      int l_i = i == 0 ? projected_p.constraint.length -1: i-1; // if current index is 0 flip the
+      pnt last = projected_p.constraint[l_i];
+      pnt curr = projected_p.constraint[i];
+      
+      float[] l_c = slope_interceptXY( last,curr );
+      
+      if( abs(curr.j) > new_frame.j ){
+        pnt tempj = new pnt();
+        tempj.name = last.name+curr.name+'j';
+        
+        tempj.j = new_frame.j;
+        tempj.k = new_frame.j*l_c[0]+l_c[1];
+        
+        if( check_p_against_frame( tempj, new_frame ) ){ bounds.add_point( tempj ); }
+      }
+      
+      if( abs(curr.k) > new_frame.k ){
+        pnt temp = new pnt();
+        temp.name = last.name+curr.name+'k';
+        
+        temp.k = new_frame.k;
+        temp.j = (new_frame.k - l_c[1] )/l_c[0];
+        
+        if( check_p_against_frame( temp, new_frame ) ){ bounds.add_point(temp); }        
+      }
     }
-    box_points = sort( box_points);
+  }
     
-    pnt minimum = box_points[0];
-    
-    /*
-      NEED TO FIGURE OUT HOW::
-        -> ROTATE AN BOX... something based upon sin,cos but how to implement it 3d not planary only
-        -> ROTATE BY AN X,Y and Z;
-        -> REPRESENT IT AS ROTATED
-      
-      INTERESTING RULE:
-        IF box is oriented towards the camera, a whole face will be visible so the amout of the points closest to camera is 4, so what i need is 4 points to define it
-        IF box is oriented at an angle towards the camera , an edge will be visible and have same x,y or z coordinate , so what i need is 2 points for edge and 6 others to be able to draw it
-        IF box is rotated in a bunch of ways, only 1 point will be closes7 to the camera , so i will need 7 points to be able to draw it
-      
-        in short, if i have n points, 8-n points is necesery to draw the full shape.
-        
-        !! find a way to represent a 3 coordinate systyem points to 2d shape !! px_mm has 2 dimensions only, your points have 3.!!
-        
-        !!ADVISED ACTION!!
-        TO EVERY POINT ADD AN DISTANCE FROM CAMERA
-        AFTER THAT FIND THE POINT WITH MINIMUM VALUE
-        IF THERE ARE OTHER POINTS WITH SAME VALUE FOR X,Y or Z FROM MINIMUM POINT
-        GO INTO "SWITCH" STATEMENT
-        
-        IF THERE IS ONLY 1 MINIMUM VALUE POINT
-          : REMOVE FORM LIST THE MAXIMUM VALUE POINT  
-              -- HAD [8] , GOT [7]
-            ->GENERATE A SHAPE FROM THAT
-        IF THERE ARE 2 POINTS WITH SAME VALUE FOR X,Y or Z OF MINIMUM POINT // ASUME THAT IT IS AN EDGE
-          : FIND AN EXACT PAIRING FROM THOSE TWO POINTS, AND REMOVE FURTHEST EDGE 
-              -- HAD [8] , GOT [6]
-            -> GENERATE SHAPE FROM THAT
-        IF THERE ARE MORE THAN 2 POINTS WITH SAME VALUE FOR X,Y or Z AXIS OF MINIMM POINT // ASUME THAT IT IS A FACE
-          : FIND 4 POINTS WITH SAME 2 AXIES AS MINIMUM POINT THAT ARE CLOSES TO CAMERA
-            -> GENERATE SHAPE FROM THAT.
-      
-      
-      
-      AFTER SHAPES ARE GENERATED, COLLOR THEM BY VALUE SCHEME
-      
-      FIND A WAY TO MANIPULATE A BOX ( ROTATION, ZOOM ... ETC ) WITH AN MOUSE EVENTS
-      
-    
-    */
-    
-    //println(box_points);
-    
+  // rescaling
+  float mult = 1/cam_o.get_frame_step();
+  for( int i = 0; i < bounds.constraint.length ; i++ ){
+    String name = bounds.constraint[i].name;
+    bounds.constraint[i] = bounds.constraint[i].p_mult(mult);
+    bounds.constraint[i].j *= -1;
+    bounds.constraint[i].k *= -1;
+    bounds.constraint[i].name = name;
   }
   
+  //drawing 
+  float[] inn = cam_o.inner.to_draw();
+  rect( inn[0], inn[1], inn[2], inn[3] );
+  fill(0xff);
+  
+  translate( width/2, height/2 );
+
+  beginShape();  
+  for( int i =0; i <= bounds.constraint.length; i++ ){
+    int j = (i+1)%bounds.constraint.length;
+    float w,h;
+    w = bounds.constraint[j].j;
+    h = bounds.constraint[j].k;
+    vertex(w,h);
+  }
+  endShape();
+}
+
+void show_on_camera( camera cam_o, pnt o, float fl, float scale ){
+  
+  /*
+  STAGES:
+  enviorment preparation
+    -> asigning new focal point
+    -> scaling down the ellipsoid
+      IF ELLIPSOID IS TOO BIG THE OBJECT WILL HAVE AN ORTHOGONAL LIKE PROJECTION
+      IF ELLISPOID IS TOO SMALL THE OBJECT WILL BE OUTSIDE THE FRAME SINCE ANY PROJECTION TO 0,0,0 WILL BE AT LARGE ANGLE OF LIMITS TO p/2
+    -> scaling down the frame of projection onto YZ ellipse 
+      This can be done only when ellipsoid is scaled, since:
+        
+        frame F[ w/2, h/2 ] :> centered aroudn 0,0,0
+        t = 2*Ry*Rz/ sqrt( pow(w*Rz,2) + pow(h*Ry,2) );
+        frame newF[ w*t*.5, h*t*.5 ]
+        
+        so if Ry,Rz,Rx isn't scaled down... wrong results will happen
+   
+   Point preparation:
+     -> getting the projection of point o
+     -> removing the x axis :> since we dont actually need it anymore :: AKA projection of that point on YZ plane
+   
+   BOUNDS:
+     -> check if the point is inside the plane
+     -> calculate the diameter of circle to that point can be visible if misake is made :: aproxx
+     -> manipulate the object so it fits
+     
+   Rescaling
+     -> rescale to the frame size :> [metric]->[pixel]
+   
+   Represent:
+     -> draw a point
+  */
+  
+  //ENV setup
+  cam_o.set_focal_length(fl);                                // devising the Rx coordinate of the ellipsoid
+  cam_o.project.radius = cam_o.project.radius.p_div(scale);  // scaling down ellispoid
+  pnt new_frame = cam_o.get_screen();                        // scaling down the frame
+  
+  //PNT setup
+  o = cam_o.project.get_projection(o);
+  o.i = 0;
+  float r = 1/scale;
+  
+  
+  //bounds
+  if( ( o.j > new_frame.j ) || (o.k >= new_frame.k ) ){
+    float e_d = sqrt( pow(o.j,2) + pow(o.k,2) );
+    r /= e_d;
+  }
+  
+  //rescaling back
+  float mult = 1/cam_o.get_frame_step();
+  o = o.p_mult(mult);
+  o.j *= -1;
+  o.k *= -1;
+  
+  //representation
+  float[] inn = cam_o.inner.to_draw();
+  
+  rect( inn[0], inn[1], inn[2], inn[3] );
+  fill(0xff);
+  
+  translate( width/2, height/2 );
+  ellipse( o.j, o.k , r, r );
+   
 }
